@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recruiter Mail Sender</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5b6573;
+    --line: #dde1e6; --accent: #1a5fd6; --accent-text: #ffffff;
+    --good: #1a7f37; --bad: #b42318; --warn: #875b00; --soft: #eef3fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --text: #e6e9ed; --muted: #9aa4b1;
+      --line: #2a3038; --accent: #4c8dff; --accent-text: #0b0d10;
+      --good: #4ac26b; --bad: #ff7b72; --warn: #d29922; --soft: #1b2433;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { max-width: 980px; margin: 0 auto; padding: 20px 16px 4px; }
+  h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 980px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 16px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  h2 { margin: 0 0 12px; font-size: 16px; display: flex; gap: 10px; align-items: center; }
+  h2 .n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+          background: var(--accent); color: var(--accent-text); font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .card { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; min-width: 0;
+          border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  .card:hover, .card.selected { border-color: var(--accent); }
+  .card.selected { background: var(--soft); }
+  .card input { margin-top: 4px; accent-color: var(--accent); }
+  .card div { min-width: 0; }
+  .card b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card small { color: var(--muted); display: block; }
+  button { white-space: nowrap; font: inherit; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.danger { color: var(--bad); border-color: var(--bad); }
+  button.stop { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+  button.confirm { background: #c62828; border-color: #c62828; color: #fff; }  /* same in both themes: 5.6:1 */
+  button:disabled { opacity: .55; cursor: default; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-top: 12px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-weight: 600; font-size: 14px; }
+  label span, .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+  label span { display: block; }
+  input[type=text], input[type=email], input[type=password], input[type=number], select, textarea {
+    width: 100%; margin-top: 5px; padding: 9px 11px; font: inherit; font-weight: 400; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+  textarea { min-height: 120px; resize: vertical; }
+  textarea.mono { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 5px; }
+  .seg label { font-weight: 400; padding: 7px 14px; cursor: pointer; }
+  .seg input { display: none; }
+  .seg label:has(input:checked) { background: var(--accent); color: var(--accent-text); }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .msg { font-size: 14px; margin-top: 10px; min-height: 1.2em; overflow-wrap: anywhere; }
+  .ok { color: var(--good); } .err { color: var(--bad); } .warn { color: var(--warn); }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 12px; background: var(--bg); }
+  .files { list-style: none; padding: 0; margin: 6px 0 0; }
+  .files li { display: flex; gap: 8px; align-items: center; padding: 4px 0; overflow-wrap: anywhere; }
+  .files button { padding: 2px 8px; font-size: 13px; }
+  .stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px; }
+  .stats b { font-size: 24px; display: block; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top;
+           overflow-wrap: anywhere; }
+  th { color: var(--muted); font-weight: 600; }
+  .tablewrap { max-height: 240px; overflow: auto; }
+  details summary { cursor: pointer; color: var(--muted); margin-top: 10px; }
+  .preview .head { font-size: 13px; color: var(--muted); }
+  .preview pre { white-space: pre-wrap; font: inherit; margin: 10px 0 0; }
+  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 12px; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  #log { height: 200px; overflow: auto; margin-top: 10px; padding: 10px; background: var(--bg);
+         border: 1px solid var(--line); border-radius: 8px; white-space: pre-wrap;
+         font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  .hidden { display: none !important; }
+  code { font-size: 13px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Recruiter Mail Sender</h1>
+  <p>Pick the account to send from, write the message once, paste the addresses, and send. Nobody gets the same mail twice.</p>
+</header>
+<main>
+
+  <!-- 1. Account -->
+  <section class="panel">
+    <h2><span class="n">1</span> Send from</h2>
+    <div class="cards" id="accounts"></div>
+    <div class="actions"><button id="addAccount" type="button">+ Add account</button></div>
+
+    <div id="accountForm" class="box hidden">
+      <b id="accountTitle">New account</b>
+      <div class="grid">
+        <div class="full">
+          <label>How to sign in</label>
+          <div class="seg">
+            <label><input type="radio" name="kind" value="smtp" checked> App password</label>
+            <label><input type="radio" name="kind" value="gmail_token"> Gmail token</label>
+          </div>
+        </div>
+        <label>Your email address
+          <input type="email" id="a_email" placeholder="you@gmail.com" autocomplete="off">
+        </label>
+        <label>Your name <span>Shown as the sender. Optional.</span>
+          <input type="text" id="a_name" placeholder="Priya Sharma">
+        </label>
+
+        <div class="full" id="smtpFields">
+          <label>App password
+            <span id="appHelp">For Gmail: turn on 2-Step Verification, then create one at
+              <b>myaccount.google.com/apppasswords</b>. It is 16 letters. Your normal password will not work.</span>
+            <input type="password" id="a_password" placeholder="abcd efgh ijkl mnop" autocomplete="new-password">
+          </label>
+          <details id="advanced">
+            <summary>Mail server (filled in for Gmail, Outlook, Yahoo and Zoho)</summary>
+            <div class="grid">
+              <label>SMTP server <input type="text" id="a_host" placeholder="smtp.example.com"></label>
+              <label>Port <input type="number" id="a_port" value="587"></label>
+              <label>Security
+                <select id="a_security">
+                  <option value="starttls">STARTTLS (port 587)</option>
+                  <option value="ssl">SSL/TLS (port 465)</option>
+                  <option value="none">None (not recommended)</option>
+                </select>
+              </label>
+              <label>Login name <span>Empty = the email address.</span><input type="text" id="a_username"></label>
+            </div>
+          </details>
+        </div>
+
+        <div class="full hidden" id="tokenFields">
+          <label>Gmail token file (token.json)
+            <span>Already have one? Choose it. It is copied to a private folder on this computer.</span>
+            <input type="text" id="a_token" placeholder="path to token.json">
+          </label>
+          <div class="actions">
+            <label class="hint" style="margin:0"><input type="file" id="tokenFile" accept=".json"> </label>
+          </div>
+          <details>
+            <summary>No token yet? Create one from a Google client_secret.json</summary>
+            <p class="hint">In Google Cloud Console: create a project, enable the <b>Gmail API</b>, then
+              <b>Credentials → Create credentials → OAuth client ID → Desktop app</b>, and download the JSON.
+              Choose that file here and press Create token: Google asks you to allow <i>send email</i> only.</p>
+            <div class="actions">
+              <input type="file" id="clientFile" accept=".json">
+              <button type="button" id="createToken">Create token</button>
+            </div>
+          </details>
+        </div>
+
+        <label>Daily limit <span>Free Gmail allows about 500 mails a day. Stay under it.</span>
+          <input type="number" id="a_limit" value="400" min="1" max="2000">
+        </label>
+      </div>
+      <div class="actions">
+        <button class="primary" type="button" id="saveAccount">Save account</button>
+        <button type="button" id="testAccount">Test sign-in</button>
+        <button type="button" id="cancelAccount">Cancel</button>
+        <button type="button" class="danger" id="deleteAccount">Delete</button>
+      </div>
+      <div class="msg" id="accountMsg"></div>
+    </div>
+  </section>
+
+  <!-- 2. Message -->
+  <section class="panel">
+    <h2><span class="n">2</span> Message</h2>
+    <div class="cards" id="templates"></div>
+    <div class="actions"><button id="addTemplate" type="button">+ New message</button></div>
+
+    <div id="templateForm" class="box hidden">
+      <div class="grid">
+        <label>Name <span>Only for you, e.g. "Java roles".</span><input type="text" id="t_name"></label>
+        <label>Subject <input type="text" id="t_subject" placeholder="Application: Java Developer, 5 years"></label>
+        <label class="full">Message
+          <span><code>{company}</code> becomes the company from the address (hr@acme.com → Acme; Gmail → "your company").
+            <code>{email}</code> becomes the address.</span>
+          <textarea id="t_body" rows="10" placeholder="Hi,&#10;&#10;I saw that {company} is hiring..."></textarea>
+        </label>
+        <div class="full">
+          <label>Attachments <span>Your resume, for example. Up to 20 MB in total.</span></label>
+          <ul class="files" id="t_files"></ul>
+          <input type="file" id="attachFile">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" type="button" id="saveTemplate">Save message</button>
+        <button type="button" id="cancelTemplate">Cancel</button>
+        <button type="button" class="danger" id="deleteTemplate">Delete</button>
+      </div>
+      <div class="msg" id="templateMsg"></div>
+    </div>
+  </section>
+
+  <!-- 3. Recipients -->
+  <section class="panel">
+    <h2><span class="n">3</span> Send to</h2>
+    <label>Addresses
+      <span>Paste anything: a list, a harvester export, a WhatsApp forward. The addresses are picked out of it.</span>
+      <textarea class="mono" id="r_text" rows="6" placeholder="hr@acme.com, jobs@northwind.in&#10;careers [at] example [dot] com"></textarea>
+    </label>
+    <div class="actions">
+      <label style="margin:0; font-weight:400">Skip anyone mailed in the last
+        <input type="number" id="r_cooldown" value="30" min="0" max="3650" style="width:80px; display:inline-block"> days</label>
+      <button type="button" id="checkList">Check list</button>
+    </div>
+    <div id="checkOut" class="hidden">
+      <div class="stats">
+        <div><b id="c_send" class="ok">0</b>to send</div>
+        <div><b id="c_found">0</b>found in the paste</div>
+        <div><b id="c_skip" class="warn">0</b>left out</div>
+      </div>
+      <details id="skipDetails"><summary>Why each one was left out</summary>
+        <div class="tablewrap"><table><thead><tr><th>Address</th><th>Reason</th></tr></thead><tbody id="c_rows"></tbody></table></div>
+      </details>
+      <details><summary>The list that will be sent</summary><textarea class="mono" id="c_list" readonly rows="5"></textarea></details>
+    </div>
+  </section>
+
+  <!-- 4. Send -->
+  <section class="panel">
+    <h2><span class="n">4</span> Send</h2>
+    <div class="actions" style="margin-top:0">
+      <label style="margin:0; font-weight:400">Wait between mails
+        <input type="number" id="s_gap" value="45" min="2" max="600" style="width:80px; display:inline-block"> seconds</label>
+      <span class="hint">45 s looks like a person sending. Very short gaps can get an account blocked.</span>
+    </div>
+    <div class="actions">
+      <button type="button" id="previewBtn">Preview</button>
+      <button type="button" id="testSend">Send a test to myself</button>
+      <button type="button" class="primary" id="sendBtn">Send</button>
+    </div>
+    <div class="msg" id="sendMsg"></div>
+    <div id="previewBox" class="box preview hidden"></div>
+
+    <div id="progress" class="hidden">
+      <div class="actions" style="justify-content:space-between">
+        <b id="p_title">Sending…</b>
+        <button type="button" class="stop" id="stopBtn">■ Stop</button>
+      </div>
+      <div class="bar"><div id="p_bar"></div></div>
+      <div class="stats">
+        <div><b id="p_sent" class="ok">0</b>sent</div>
+        <div><b id="p_failed" class="err">0</b>failed</div>
+        <div><b id="p_left">0</b>left</div>
+        <div><b id="p_eta">–</b>time left</div>
+      </div>
+      <div class="hint" id="p_current"></div>
+      <div id="log"></div>
+      <div id="p_result" class="msg"></div>
+      <details id="p_notSentBox" class="hidden"><summary>Addresses not sent (copy them to send later)</summary>
+        <textarea class="mono" id="p_notSent" readonly rows="4"></textarea></details>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let S = { accounts: [], templates: [], providers: {}, status: {} };
+let acct = null, tmpl = null, editingAccount = null, editingTemplate = null, files = [], checked = null;
+let pollTimer = null;
+const saved = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
+
+async function api(path, data, raw) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: raw ? { "X-Key": window.__KEY__, "X-Filename": raw.name, "X-Kind": raw.kind }
+                 : { "X-Key": window.__KEY__, "Content-Type": "application/json" },
+    body: raw ? raw.file : JSON.stringify(data || {}),
+  });
+  const out = await r.json().catch(() => ({ error: "no answer from the mail sender" }));
+  if (!r.ok) throw new Error(out.error || "failed");
+  return out;
+}
+function say(el, text, cls) { el.className = "msg " + (cls || ""); el.textContent = text; }
+
+// --- accounts ---------------------------------------------------------------
+
+function renderAccounts() {
+  const box = $("#accounts");
+  box.innerHTML = S.accounts.length ? "" : '<p class="hint">No account yet. Add the one you send from.</p>';
+  for (const a of S.accounts) {
+    const el = document.createElement("label");
+    el.className = "card" + (a.id === acct ? " selected" : "");
+    const how = a.kind === "smtp" ? "app password" : "Gmail token";
+    el.innerHTML = `<input type="radio" name="acct" ${a.id === acct ? "checked" : ""}>
+      <div><b>${esc(a.email)}</b><small>${esc(how)} · ${a.sent_today}/${a.daily_limit} today</small>
+      <small><a href="#" data-edit="${esc(a.id)}">edit</a></small></div>`;
+    el.onclick = (ev) => {
+      if (ev.target.dataset.edit) { ev.preventDefault(); openAccount(a); return; }
+      acct = a.id; saved("acct", acct); renderAccounts();
+    };
+    box.appendChild(el);
+  }
+}
+
+function kind() { return document.querySelector("input[name=kind]:checked").value; }
+function showKind() {
+  $("#smtpFields").classList.toggle("hidden", kind() !== "smtp");
+  $("#tokenFields").classList.toggle("hidden", kind() !== "gmail_token");
+}
+for (const r of document.querySelectorAll("input[name=kind]")) r.onchange = showKind;
+
+// Fill the server fields from the address, so Gmail/Outlook users never see them.
+// Only values filled in here are replaced when the address changes; a server the
+// person typed by hand is left alone.
+let autoHost = false;
+$("#a_host").oninput = () => { autoHost = false; };
+$("#a_email").oninput = () => {
+  const domain = ($("#a_email").value.split("@")[1] || "").toLowerCase();
+  const map = { "gmail.com": "gmail", "googlemail.com": "gmail", "outlook.com": "outlook", "hotmail.com": "outlook",
+                "live.com": "outlook", "msn.com": "outlook", "yahoo.com": "yahoo", "yahoo.in": "yahoo",
+                "yahoo.co.in": "yahoo", "ymail.com": "yahoo", "zoho.com": "zoho", "zohomail.in": "zoho_in",
+                "zohomail.com": "zoho" };
+  const p = S.providers[map[domain]];
+  const handTyped = $("#a_host").value && !autoHost;
+  if (p && !handTyped) {
+    $("#a_host").value = p.host; $("#a_port").value = p.port; $("#a_security").value = p.security; autoHost = true;
+  } else if (!p && autoHost) {
+    $("#a_host").value = ""; $("#a_port").value = 587; $("#a_security").value = "starttls"; autoHost = false;
+  }
+  // A company address needs its server filled in by hand: show those fields.
+  $("#advanced").open = domain.includes(".") && !p && !$("#a_host").value ? true : $("#advanced").open && !p;
+};
+$("#a_security").onchange = () => { $("#a_port").value = { starttls: 587, ssl: 465, none: 25 }[$("#a_security").value]; };
+
+function openAccount(a) {
+  editingAccount = a ? a.id : null;
+  $("#accountTitle").textContent = a ? "Edit " + a.email : "New account";
+  document.querySelector(`input[name=kind][value=${a ? a.kind : "smtp"}]`).checked = true;
+  $("#a_email").value = a ? a.email : "";
+  $("#a_name").value = a ? a.name : "";
+  $("#a_password").value = a && a.password ? a.password : "";
+  $("#a_host").value = a ? a.host : "";
+  $("#a_port").value = a ? a.port : 587;
+  $("#a_security").value = a ? a.security : "starttls";
+  $("#a_username").value = a && a.username !== a.email ? a.username : "";
+  $("#a_token").value = a ? a.token_path : "";
+  $("#a_limit").value = a ? a.daily_limit : 400;
+  autoHost = false;
+  $("#advanced").open = !!(a && a.kind === "smtp" && !Object.values(S.providers).some(p => p.host === a.host));
+  $("#deleteAccount").classList.toggle("hidden", !a);
+  $("#testAccount").classList.toggle("hidden", !a);
+  say($("#accountMsg"), "");
+  showKind();
+  $("#accountForm").classList.remove("hidden");
+  $("#a_email").focus();
+}
+$("#addAccount").onclick = () => openAccount(null);
+$("#cancelAccount").onclick = () => $("#accountForm").classList.add("hidden");
+
+$("#saveAccount").onclick = async () => {
+  const d = { id: editingAccount, kind: kind(), email: $("#a_email").value.trim(), name: $("#a_name").value.trim(),
+              password: $("#a_password").value, host: $("#a_host").value.trim(), port: Number($("#a_port").value) || 587,
+              security: $("#a_security").value, username: $("#a_username").value.trim(),
+              token_path: $("#a_token").value.trim(), daily_limit: Number($("#a_limit").value) || 400 };
+  try {
+    const out = await api("/api/account/save", d);
+    S = { ...S, ...out }; acct = out.id; editingAccount = out.id; saved("acct", acct);
+    renderAccounts();
+    $("#testAccount").classList.remove("hidden"); $("#deleteAccount").classList.remove("hidden");
+    say($("#accountMsg"), "Saved. Checking the sign-in…");
+    await testAccount();
+  } catch (e) { say($("#accountMsg"), e.message, "err"); }
+};
+
+async function testAccount() {
+  $("#testAccount").disabled = true;
+  try {
+    const r = await api("/api/account/test", { id: editingAccount });
+    say($("#accountMsg"), (r.ok ? "✓ " : "✗ ") + r.message, r.ok ? "ok" : "err");
+  } catch (e) { say($("#accountMsg"), e.message, "err"); }
+  $("#testAccount").disabled = false;
+}
+$("#testAccount").onclick = testAccount;
+
+$("#deleteAccount").onclick = async () => {
+  const b = $("#deleteAccount");
+  if (!b.classList.contains("confirm")) { b.classList.add("confirm"); b.textContent = "Really delete?"; setTimeout(() => { b.classList.remove("confirm"); b.textContent = "Delete"; }, 4000); return; }
+  S = { ...S, ...(await api("/api/account/delete", { id: editingAccount })) };
+  if (acct === editingAccount) acct = null;
+  $("#accountForm").classList.add("hidden"); renderAccounts();
+};
+
+async function uploadTo(input, kind) {
+  const f = input.files[0];
+  if (!f) return null;
+  const out = await api("/api/upload", null, { file: f, name: f.name, kind });
+  input.value = "";
+  return out.path;
+}
+$("#tokenFile").onchange = async () => {
+  try { $("#a_token").value = await uploadTo($("#tokenFile"), "token"); say($("#accountMsg"), "Token file copied. Press Save account."); }
+  catch (e) { say($("#accountMsg"), e.message, "err"); }
+};
+$("#createToken").onclick = async () => {
+  try {
+    if (!$("#clientFile").files[0]) { say($("#accountMsg"), "Choose the client_secret.json file first.", "err"); return; }
+    const client = await uploadTo($("#clientFile"), "client");
+    say($("#accountMsg"), "A Google sign-in tab has opened. Allow sending email there, then come back here.");
+    $("#createToken").disabled = true;
+    const r = await api("/api/token/create", { client_secret: client, email: $("#a_email").value.trim() });
+    if (r.ok) { $("#a_token").value = r.token_path; say($("#accountMsg"), "✓ " + r.message + ". Press Save account.", "ok"); }
+    else say($("#accountMsg"), "✗ " + r.message, "err");
+  } catch (e) { say($("#accountMsg"), e.message, "err"); }
+  $("#createToken").disabled = false;
+};
+
+// --- templates --------------------------------------------------------------
+
+function renderTemplates() {
+  const box = $("#templates");
+  box.innerHTML = S.templates.length ? "" : '<p class="hint">No message yet. Write the one you want to send.</p>';
+  for (const t of S.templates) {
+    const el = document.createElement("label");
+    el.className = "card" + (t.id === tmpl ? " selected" : "");
+    const n = (t.attachments || []).length;
+    el.innerHTML = `<input type="radio" name="tmpl" ${t.id === tmpl ? "checked" : ""}>
+      <div><b>${esc(t.name)}</b><small>${esc(t.subject)}</small>
+      <small>${n ? n + " attachment" + (n > 1 ? "s" : "") + " · " : ""}<a href="#" data-edit="1">edit</a></small></div>`;
+    el.onclick = (ev) => {
+      if (ev.target.dataset.edit) { ev.preventDefault(); openTemplate(t); return; }
+      tmpl = t.id; saved("tmpl", tmpl); renderTemplates();
+    };
+    box.appendChild(el);
+  }
+}
+function renderFiles() {
+  $("#t_files").innerHTML = files.map((p, i) =>
+    `<li>📎 ${esc(p.split(/[\\/]/).pop())} <button type="button" data-i="${i}">remove</button></li>`).join("");
+  for (const b of $("#t_files").querySelectorAll("button")) b.onclick = () => { files.splice(Number(b.dataset.i), 1); renderFiles(); };
+}
+function openTemplate(t) {
+  editingTemplate = t ? t.id : null;
+  $("#t_name").value = t ? t.name : "";
+  $("#t_subject").value = t ? t.subject : "";
+  $("#t_body").value = t ? t.body : "";
+  files = t ? [...(t.attachments || [])] : [];
+  renderFiles();
+  $("#deleteTemplate").classList.toggle("hidden", !t);
+  say($("#templateMsg"), "");
+  $("#templateForm").classList.remove("hidden");
+  $("#t_name").focus();
+}
+$("#addTemplate").onclick = () => openTemplate(null);
+$("#cancelTemplate").onclick = () => $("#templateForm").classList.add("hidden");
+$("#attachFile").onchange = async () => {
+  try { const p = await uploadTo($("#attachFile"), "attachment"); if (p && !files.includes(p)) files.push(p); renderFiles(); }
+  catch (e) { say($("#templateMsg"), e.message, "err"); }
+};
+$("#saveTemplate").onclick = async () => {
+  try {
+    const out = await api("/api/template/save", { id: editingTemplate, name: $("#t_name").value.trim(),
+      subject: $("#t_subject").value, body: $("#t_body").value, attachments: files });
+    S = { ...S, ...out }; tmpl = out.id; editingTemplate = out.id; saved("tmpl", tmpl);
+    renderTemplates(); $("#deleteTemplate").classList.remove("hidden");
+    say($("#templateMsg"), "✓ Saved.", "ok");
+  } catch (e) { say($("#templateMsg"), e.message, "err"); }
+};
+$("#deleteTemplate").onclick = async () => {
+  const b = $("#deleteTemplate");
+  if (!b.classList.contains("confirm")) { b.classList.add("confirm"); b.textContent = "Really delete?"; setTimeout(() => { b.classList.remove("confirm"); b.textContent = "Delete"; }, 4000); return; }
+  S = { ...S, ...(await api("/api/template/delete", { id: editingTemplate })) };
+  if (tmpl === editingTemplate) tmpl = null;
+  $("#templateForm").classList.add("hidden"); renderTemplates();
+};
+
+// --- recipients -------------------------------------------------------------
+
+async function checkList() {
+  const r = await api("/api/check", { text: $("#r_text").value, cooldown_days: Number($("#r_cooldown").value) || 0 });
+  checked = r;
+  $("#c_send").textContent = r.send.length;
+  $("#c_found").textContent = r.found;
+  $("#c_skip").textContent = r.skipped.length;
+  $("#c_rows").innerHTML = r.skipped.map(([e, why]) => `<tr><td>${esc(e)}</td><td>${esc(why)}</td></tr>`).join("");
+  $("#skipDetails").classList.toggle("hidden", !r.skipped.length);
+  $("#c_list").value = r.send.join("\n");
+  $("#checkOut").classList.remove("hidden");
+  updateSendButton();
+  return r;
+}
+$("#checkList").onclick = () => checkList().catch(e => alertMsg(e.message));
+$("#r_text").oninput = () => { checked = null; updateSendButton(); };
+$("#r_cooldown").oninput = () => { checked = null; updateSendButton(); };
+
+// --- send -------------------------------------------------------------------
+
+function alertMsg(text, cls = "err") { say($("#sendMsg"), text, cls); }
+function ready() {
+  if (!acct) return "Pick or add an account in step 1.";
+  if (!tmpl) return "Pick or write a message in step 2.";
+  return "";
+}
+function updateSendButton() {
+  const b = $("#sendBtn");
+  b.classList.remove("confirm");
+  b.textContent = checked ? `Send to ${checked.send.length} ${checked.send.length === 1 ? "person" : "people"}` : "Send";
+}
+
+$("#previewBtn").onclick = async () => {
+  const why = ready(); if (why) return alertMsg(why);
+  try {
+    const first = checked && checked.send[0] || "";
+    const p = await api("/api/preview", { account: acct, template: tmpl, to: first });
+    $("#previewBox").innerHTML = `<div class="head"><b>From:</b> ${esc(p.from)}<br><b>To:</b> ${esc(p.to)}<br>
+      <b>Subject:</b> ${esc(p.subject)}${p.attachments.length ? "<br><b>Attached:</b> " + esc(p.attachments.join(", ")) : ""}</div>
+      <pre>${esc(p.body)}</pre>`;
+    $("#previewBox").classList.remove("hidden");
+    alertMsg(first ? "This is the first mail exactly as it will go out." : "Preview with your own address. Check the list in step 3 to preview the first real one.", "");
+  } catch (e) { alertMsg(e.message); }
+};
+
+$("#testSend").onclick = async () => {
+  const why = ready(); if (why) return alertMsg(why);
+  $("#testSend").disabled = true; alertMsg("Sending a test to yourself…", "");
+  try { const r = await api("/api/test-send", { account: acct, template: tmpl }); alertMsg((r.ok ? "✓ " : "✗ ") + r.message, r.ok ? "ok" : "err"); }
+  catch (e) { alertMsg(e.message); }
+  $("#testSend").disabled = false;
+};
+
+$("#sendBtn").onclick = async () => {
+  const why = ready(); if (why) return alertMsg(why);
+  const b = $("#sendBtn");
+  try {
+    if (!checked) await checkList();
+    if (!checked.send.length) return alertMsg("Nobody left to send to after the checks in step 3.");
+    if (!b.classList.contains("confirm")) {
+      // Second click to send: a real mail cannot be taken back.
+      b.classList.add("confirm");
+      const a = S.accounts.find(x => x.id === acct);
+      b.textContent = `Really send to ${checked.send.length}? Click again`;
+      alertMsg(`From ${a.email}. About ${eta(checked.send.length, gap())} with a ${gap()} s gap.`, "warn");
+      setTimeout(updateSendButton, 6000);
+      return;
+    }
+    updateSendButton();
+    const r = await api("/api/send", { account: acct, template: tmpl, text: $("#r_text").value,
+      cooldown_days: Number($("#r_cooldown").value) || 0, gap: gap() });
+    alertMsg(`Started: ${r.started} mails.`, "ok");
+    startPolling();
+  } catch (e) { alertMsg(e.message); }
+};
+const gap = () => Math.max(2, Number($("#s_gap").value) || 45);
+function eta(n, g) {
+  const s = Math.max(0, n - 1) * g + n * 3;
+  return s < 90 ? `${Math.round(s)} seconds` : s < 5400 ? `${Math.round(s / 60)} minutes` : `${(s / 3600).toFixed(1)} hours`;
+}
+
+$("#stopBtn").onclick = async () => {
+  $("#stopBtn").disabled = true; $("#stopBtn").textContent = "Stopping…";
+  await api("/api/stop");
+};
+
+function setBusy(on) {
+  for (const id of ["#sendBtn", "#testSend", "#addAccount", "#addTemplate", "#checkList", "#saveAccount", "#saveTemplate"])
+    $(id).disabled = on;
+}
+
+function renderProgress(s) {
+  if (!s || (!s.running && !s.result)) return;
+  $("#progress").classList.remove("hidden");
+  const done = s.sent + s.failed;
+  $("#p_bar").style.width = (s.total ? 100 * done / s.total : 0) + "%";
+  $("#p_sent").textContent = s.sent;
+  $("#p_failed").textContent = s.failed;
+  $("#p_left").textContent = Math.max(0, s.total - done);
+  $("#p_eta").textContent = s.running ? eta(s.total - done, s.gap || 45) : "–";
+  $("#p_current").textContent = s.running ? (s.current ? "Now: " + s.current : "") : "";
+  const log = $("#log"), atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+  log.textContent = s.log.join("\n");
+  if (atEnd) log.scrollTop = log.scrollHeight;
+  $("#stopBtn").classList.toggle("hidden", !s.running);
+  setBusy(s.running);
+  if (s.running) {
+    $("#p_title").textContent = `Sending from ${s.account || ""}…`;
+    $("#stopBtn").disabled = false; $("#stopBtn").textContent = "■ Stop";
+    say($("#p_result"), "");
+  } else if (s.result) {
+    const r = s.result;
+    $("#p_title").textContent = r.stopped ? "Stopped" : "Done";
+    const bits = [`${r.sent.length} sent`];
+    if (r.failed.length) bits.push(`${r.failed.length} failed`);
+    if (r.not_sent.length) bits.push(`${r.not_sent.length} not sent`);
+    const end = r.stopped ? ". " + r.stopped
+      : r.failed.length ? ". The failed ones are listed below; the refused ones will be left out next time."
+      : ". Everyone on the list got the mail.";
+    say($("#p_result"), bits.join(" · ") + end, r.failed.length || r.stopped ? "warn" : "ok");
+    const retry = [...r.not_sent, ...r.failed.map(f => f[0])];
+    $("#p_notSent").value = retry.join("\n");
+    $("#p_notSentBox").classList.toggle("hidden", !retry.length);
+  }
+}
+
+function startPolling() {
+  clearInterval(pollTimer);
+  const tick = async () => {
+    try {
+      const s = await api("/api/status");
+      renderProgress(s);
+      if (!s.running) {
+        clearInterval(pollTimer);
+        const st = await api("/api/state"); S = { ...S, ...st }; renderAccounts();
+        checked = null; updateSendButton();
+      }
+    } catch (e) { /* the server may be restarting; keep trying */ }
+  };
+  tick(); pollTimer = setInterval(tick, 1000);
+}
+
+// --- start ------------------------------------------------------------------
+
+(async () => {
+  S = await api("/api/state");
+  acct = S.accounts.some(a => a.id === saved("acct")) ? saved("acct") : (S.accounts[0] || {}).id || null;
+  tmpl = S.templates.some(t => t.id === saved("tmpl")) ? saved("tmpl") : (S.templates[0] || {}).id || null;
+  renderAccounts(); renderTemplates();
+  if (!S.accounts.length) openAccount(null);
+  if (S.status.running) startPolling(); else renderProgress(S.status);
+})();
+</script>
+</body>
+</html>

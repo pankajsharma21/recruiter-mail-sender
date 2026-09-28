@@ -1,0 +1,7 @@
+{
+  "id": "job-application",
+  "name": "Job application (example)",
+  "subject": "Application: Java Developer, 5 years experience",
+  "body": "Hi,\n\nI came across the opening at {company} and would like to apply. I am a Java developer with 5 years of experience in Spring Boot, microservices and REST APIs.\n\nMy resume is attached. I am available to join within 30 days and happy to talk at a time that suits you.\n\nThank you for your time.\n\nRegards,\nYour Name\n+91 00000 00000",
+  "attachments": []
+}
