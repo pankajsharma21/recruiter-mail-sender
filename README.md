@@ -84,12 +84,60 @@ Stopping while a mail is on its way lets that mail finish and be recorded first,
 
 Next time your account and message are already selected: paste, check, send.
 
-### Quick test
+### Step by step: your first mail
 
-1. `./run.sh`
-2. Add your account. You should see *✓ Signed in … Ready to send.*
-3. Write a short message, then press **Send a test to myself**.
-4. Open your inbox (and Spam). The test mail is there with *[Test]* in the subject.
+Follow these once from start to finish. After that it's just steps 4 to 7.
+
+**1. Install** (only the first time):
+```bash
+git clone https://github.com/pankajsharma21/recruiter-mail-sender.git
+cd recruiter-mail-sender
+python3 -m venv .venv
+.venv/bin/pip install -e .
+```
+
+**2. Get an app password** (only the first time). For Gmail:
+1. Open **myaccount.google.com/security** and turn on **2-Step Verification**.
+2. Open **myaccount.google.com/apppasswords**, type a name such as `mail sender`, and press **Create**.
+3. Copy the 16 letters it shows (`abcd efgh ijkl mnop`). Google shows them only once.
+
+Other providers: see [Get an app password](#get-an-app-password-2-minutes).
+
+**3. Start the screen:**
+```bash
+cd recruiter-mail-sender
+./run.sh
+```
+The screen opens in your browser. If it doesn't, open the address `./run.sh` prints (normally `http://127.0.0.1:8765/`).
+
+**4. Add your account** (only the first time):
+1. Under **1 Send from**, press **+ Add account**.
+2. Fill in your email address and your name. Keep **App password** selected and paste the 16 letters.
+3. Press **Save account**. It signs in right away: *✓ Signed in … Ready to send.* If you see ✗, the message says what to fix.
+
+**5. Write the message** (only the first time, or when you want a new one):
+1. Under **2 Message**, press **+ New message**.
+2. Give it a name (only you see it), a subject and the text. `{company}` becomes the company from each address.
+3. Under *Attachments*, choose your resume.
+4. Press **Save message**.
+
+**6. Test it on yourself:** under **4 Send**, press **Send a test to myself**. Open your inbox (and Spam): the mail is there with *[Test]* in the subject and your resume attached. Check that it looks right before mailing anyone else.
+
+**7. Send to the list:**
+1. Under **3 Send to**, paste the addresses and press **Check list**. To see the checks at work, try this:
+   ```
+   HR: hr@acme-tech.co.in, HR@acme-tech.co.in
+   careers [at] infosys [dot] com
+   noreply@naukri.com  priya@gamil.com  jobs@wipro.com
+   ```
+   It keeps 3 and leaves out 3: the duplicate, the no-reply address and the `gamil.com` typo. Open *Why each one was left out* to see the reasons.
+2. Press **Preview** to see the first mail exactly as it will go out.
+3. Press **Send to N people**, then click it once more to confirm.
+4. Watch the progress. **■ Stop** ends it after the current mail. When it finishes, the addresses not sent are listed so you can copy them for later.
+
+**8. Stop the screen:** `./stop.sh` (or Ctrl+C if you started it with `.venv/bin/mailsend`).
+
+Next time: `./run.sh`, paste the new list, **Check list**, **Send**. Your account and message are already selected, and everyone you mailed in the last 30 days is left out automatically.
 
 ## Good to know
 
