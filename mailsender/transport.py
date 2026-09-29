@@ -62,9 +62,18 @@ class SmtpTransport:
                 if a.security == "starttls":
                     conn.starttls(context=ssl.create_default_context())
                     conn.ehlo()
+            if a.security == "none" and conn.has_extn("starttls") and not conn.has_extn("auth"):
+                conn.close()
+                raise SendError(f"{a.host} wants an encrypted connection: set Security to STARTTLS (port 587)",
+                                temporary=False, account=True)
             conn.login(a.username, a.password)
         except smtplib.SMTPAuthenticationError as e:
             raise SendError(_auth_hint(a, e), temporary=False, account=True) from None
+        except ssl.SSLCertVerificationError as e:
+            # Never fall back to an unchecked connection: that would hand the password to
+            # whoever is pretending to be the mail server.
+            raise SendError(f"{a.host} sent a certificate that cannot be trusted ({e.verify_message}); "
+                            "check the server name", temporary=False, account=True) from None
         except smtplib.SMTPNotSupportedError as e:
             raise SendError(f"the server does not support this login ({e}); check the security setting",
                             temporary=False, account=True) from None

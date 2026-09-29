@@ -1,16 +1,28 @@
 """A tiny real SMTP server for tests: speaks the protocol over a socket, checks the
 login, and keeps what it receives. Addresses containing "refuse" get a permanent
-550, "busy" a temporary 451; `limit_after` makes it answer like Gmail's daily cap."""
+550, "busy" a temporary 451; `limit_after` makes it answer like Gmail's daily cap.
+
+tls="starttls" behaves like Gmail on 587 (no login before STARTTLS); tls="ssl" is
+encrypted from the first byte, like port 465. Both need `certfile`/`keyfile`."""
 
 import base64
 import socketserver
+import ssl
 import threading
 from email import message_from_bytes, policy
 
 
 class FakeSMTP:
-    def __init__(self, user="me@test.example", password="secret", limit_after=None, drop_all=False):
+    def __init__(self, user="me@test.example", password="secret", limit_after=None, drop_all=False,
+                 tls=None, certfile=None, keyfile=None):
         self.user, self.password = user, password
+        self.tls = tls
+        self.raw: list[bytes] = []  # each message exactly as it came over the wire
+        self.tls_used: list[str] = []
+        if tls:
+            # Built directly, not with create_default_context, which tests patch for the client side.
+            self.ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.ctx.load_cert_chain(certfile, keyfile)
         self.limit_after = limit_after
         self.drop_all = drop_all
         self.messages: list = []   # parsed EmailMessage objects
@@ -22,9 +34,22 @@ class FakeSMTP:
             def reply(self, line):
                 self.wfile.write((line + "\r\n").encode())
 
+            def secure(self):
+                self.connection = outer.ctx.wrap_socket(self.connection, server_side=True)
+                self.rfile = self.connection.makefile("rb")
+                self.wfile = self.connection.makefile("wb", buffering=0)
+                outer.tls_used.append(self.connection.version())
+
             def handle(self):
                 if outer.drop_all:
                     return  # accept the TCP connection, then hang up: looks like a network drop
+                encrypted = False
+                if outer.tls == "ssl":
+                    try:
+                        self.secure()
+                    except (ssl.SSLError, OSError):
+                        return  # the client refused our certificate
+                    encrypted = True
                 self.reply("220 fake ESMTP")
                 authed, rcpts = False, []
                 while True:
@@ -34,7 +59,19 @@ class FakeSMTP:
                     line = raw.decode().rstrip("\r\n")
                     cmd = line.split(" ", 1)[0].upper()
                     if cmd in ("EHLO", "HELO"):
-                        self.reply("250-fake"); self.reply("250 AUTH PLAIN LOGIN")
+                        if outer.tls == "starttls" and not encrypted:
+                            self.reply("250-fake"); self.reply("250 STARTTLS")   # AUTH only after TLS, like Gmail
+                        else:
+                            self.reply("250-fake"); self.reply("250 AUTH PLAIN LOGIN")
+                    elif cmd == "STARTTLS":
+                        self.reply("220 go ahead")
+                        try:
+                            self.secure()
+                        except (ssl.SSLError, OSError):
+                            return
+                        encrypted = True
+                    elif cmd == "AUTH" and outer.tls and not encrypted:
+                        self.reply("530 5.7.0 Must issue a STARTTLS command first")
                     elif cmd == "AUTH":
                         parts = line.split()
                         if parts[1].upper() == "PLAIN":
@@ -73,6 +110,7 @@ class FakeSMTP:
                             if l in (b".\r\n", b".\n", b""):
                                 break
                             data += l[1:] if l.startswith(b"..") else l
+                        outer.raw.append(data)
                         outer.messages.append(message_from_bytes(data, policy=policy.default))
                         outer.rcpts += rcpts
                         self.reply("250 queued")
